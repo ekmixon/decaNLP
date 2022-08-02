@@ -40,35 +40,34 @@ def to_lf(s, table):
                 sel = idx
 
     full_conditions = []
-    if not condition_s is None:
+    if condition_s is not None:
 
-        condition_s = ' ' + condition_s + ' '
-        for idx, col in enumerate(headers):
-            condition_s = condition_s.replace(' ' + col[0] + ' ', ' Col{} '.format(col[1]))
+        condition_s = f' {condition_s} '
+        for col in headers:
+            condition_s = condition_s.replace(f' {col[0]} ', f' Col{col[1]} ')
         condition_s = condition_s.strip()
- 
+
         for idx, col in enumerate(conditionals):
             new_s = []
             for t in condition_s.split():
                 if t == col:
-                    new_s.append('Cond{}'.format(idx))
+                    new_s.append(f'Cond{idx}')
                 else:
                     new_s.append(t)
             condition_s = ' '.join(new_s)
         s = condition_s
         conds = re.split('(Col\d+ Cond\d+)', s)
         if len(conds) == 0:
-            conds = [s] 
+            conds = [s]
         conds = [x for x in conds if len(x.strip()) > 0]
         full_conditions = []
         for i, x in enumerate(conds):
+            x = x.split()
             if i % 2 == 0:
-                x = x.split()
                 col_num = int(x[0].replace('Col', ''))
                 opp_num = int(x[1].replace('Cond', ''))
                 full_conditions.append([col_num, opp_num])
             else:
-                x = x.split()
                 if x[-1] == 'and':
                     x = x[:-1]
                 x = ' '.join(x)
@@ -91,8 +90,7 @@ def to_lf(s, table):
                     x = new_x
                     x = ' '.join(x)
                 full_conditions[-1].append(x)
-    logical_form = {'sel': sel, 'conds': full_conditions, 'agg': agg}
-    return logical_form
+    return {'sel': sel, 'conds': full_conditions, 'agg': agg}
 
 
 def computeLFEM(greedy, answer, args):
@@ -100,7 +98,7 @@ def computeLFEM(greedy, answer, args):
     count = 0
     correct = 0
     text_answers = []
-    for idx, (g, ex) in enumerate(zip(greedy, answer)):
+    for g, ex in zip(greedy, answer):
         count += 1
         text_answers.append([ex['answer'].lower()])
         try:
@@ -125,19 +123,22 @@ def score(answer, gold):
     answer = simplify(answer)
     tp, tn, sys_pos, real_pos = 0, 0, 0, 0
     if answer == gold:
-        if not ('unanswerable' in gold and len(gold) == 1):
+        if 'unanswerable' not in gold or len(gold) != 1:
             tp += 1
         else:
             tn += 1
-    if not ('unanswerable' in answer and len(answer) == 1):
+    if 'unanswerable' not in answer or len(answer) != 1:
         sys_pos += 1
-    if not ('unanswerable' in gold and len(gold) == 1):
+    if 'unanswerable' not in gold or len(gold) != 1:
         real_pos += 1
     return np.array([tp, tn, sys_pos, real_pos])
 
 
 def simplify(answer):
-    return set(''.join(c for c in t if c not in string.punctuation) for t in answer.strip().lower().split()) - {'the', 'a', 'an', 'and', ''}
+    return {
+        ''.join(c for c in t if c not in string.punctuation)
+        for t in answer.strip().lower().split()
+    } - {'the', 'a', 'an', 'and', ''}
      
 
 # http://nlp.cs.washington.edu/zeroshot/evaluate.py
@@ -178,21 +179,27 @@ def f1_score(prediction, ground_truth):
         return 0
     precision = 1.0 * num_same / len(prediction_tokens)
     recall = 1.0 * num_same / len(ground_truth_tokens)
-    f1 = (2 * precision * recall) / (precision + recall)
-    return f1
+    return (2 * precision * recall) / (precision + recall)
 
 def exact_match(prediction, ground_truth):
     return prediction == ground_truth
 
 def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
     scores_for_ground_truths = []
-    for idx, ground_truth in enumerate(ground_truths):
+    for ground_truth in ground_truths:
         score = metric_fn(prediction, ground_truth)
         scores_for_ground_truths.append(score)
     return max(scores_for_ground_truths)
 
 def computeF1(outputs, targets):
-    return sum([metric_max_over_ground_truths(f1_score, o, t) for o, t in zip(outputs, targets)])/len(outputs) * 100
+    return (
+        sum(
+            metric_max_over_ground_truths(f1_score, o, t)
+            for o, t in zip(outputs, targets)
+        )
+        / len(outputs)
+        * 100
+    )
 
 def computeEM(outputs, targets):
     outs = [metric_max_over_ground_truths(exact_match, o, t) for o, t in zip(outputs, targets)]
@@ -225,11 +232,7 @@ class Rouge(Rouge155):
     def __init__(self, n_words=None,
                  keep_files=False, options=None):
 
-        if options is None:
-            self.options = self.DEFAULT_OPTIONS.copy()
-        else:
-            self.options = options
-
+        self.options = self.DEFAULT_OPTIONS.copy() if options is None else options
         if n_words:
             options.extend(["-l", n_words])
 
@@ -246,13 +249,13 @@ class Rouge(Rouge155):
             list(map(str, self.options)) +
             [os.path.join(self._config_dir, "settings.xml")])
 
-        logging.info("Running ROUGE with options {}".format(" ".join(options)))
+        logging.info(f'Running ROUGE with options {" ".join(options)}')
         # print([self._rouge_bin] + list(options))
         pipes = Popen([self._rouge_bin] + options, stdout=PIPE, stderr=PIPE)
         std_out, std_err = pipes.communicate()
 
         div_by_zero_error = std_err.decode("utf-8").\
-            startswith("Illegal division by zero")
+                startswith("Illegal division by zero")
         if pipes.returncode == 0 or div_by_zero_error:
             # Still returns the correct output even with div by zero
             return std_out
@@ -263,20 +266,19 @@ class Rouge(Rouge155):
 
 def computeROUGE(greedy, answer):
     rouges = compute_rouge_scores(greedy, answer)
-    if len(rouges) > 0:
-        avg_rouges = {}
-        for key in rouges[0].keys():
-            avg_rouges[key] = sum(
-                [r.get(key, 0.0) for r in rouges]) / len(rouges) * 100
-    else:
-        avg_rouges = None
-    return avg_rouges
+    return (
+        {
+            key: ((sum(r.get(key, 0.0) for r in rouges) / len(rouges)) * 100)
+            for key in rouges[0].keys()
+        }
+        if len(rouges) > 0
+        else None
+    )
 
 
 def split_sentences(txt, splitchar=".", include_splitchar=False):
     """Split sentences of a text based on a given EOS char."""
-    out = [s.split() for s in txt.strip().split(splitchar) if len(s) > 0]
-    return out
+    return [s.split() for s in txt.strip().split(splitchar) if len(s) > 0]
 
 def compute_rouge_scores(summs, refs, splitchar='.', options=None, parallel=True):
     assert len(summs) == len(refs)
@@ -286,7 +288,7 @@ def compute_rouge_scores(summs, refs, splitchar='.', options=None, parallel=True
             '-m',  # use Porter stemmer
             '-n', 2,  # max-ngram
             '-w', 1.3,  # weight (weighting factor for WLCS)
-        ] 
+        ]
     rr = Rouge(options=options)
     rouge_args = []
     for summ, ref in zip(summs, refs):
@@ -301,9 +303,7 @@ def compute_rouge_scores(summs, refs, splitchar='.', options=None, parallel=True
         with closing(Pool(cpu_count()//2)) as pool:
             rouge_scores = pool.starmap(rr.score_summary, rouge_args)
     else:
-        rouge_scores = []
-        for s, a in rouge_args:
-            rouge_scores.append(rr.score_summary(s, ref_dict))
+        rouge_scores = [rr.score_summary(s, ref_dict) for s, a in rouge_args]
     return rouge_scores
 
 
@@ -338,17 +338,19 @@ def dict_cmp(d1, d2):
         for k1, v1 in a.items():
             if k1 not in b:
                 return False
-            else:
-                if v1 != b[k1]:
-                    return False
+            if v1 != b[k1]:
+                return False
         return True
+
     return cmp(d1, d2) and cmp(d2, d1)
 
 
 def computeDialogue(greedy, answer):
-    examples = []
-    for idx, (g, a) in enumerate(zip(greedy, answer)):
-        examples.append((a[0][0], g, a[0][1], idx))
+    examples = [
+        (a[0][0], g, a[0][1], idx)
+        for idx, (g, a) in enumerate(zip(greedy, answer))
+    ]
+
     examples.sort()
     turn_request_positives = 0
     turn_goal_positives = 0

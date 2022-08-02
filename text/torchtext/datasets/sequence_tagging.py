@@ -14,11 +14,15 @@ class SequenceTaggingDataset(data.Dataset):
 
     @staticmethod
     def sort_key(example):
-        for attr in dir(example):
-            if not callable(getattr(example, attr)) and \
-                    not attr.startswith("__"):
-                return len(getattr(example, attr))
-        return 0
+        return next(
+            (
+                len(getattr(example, attr))
+                for attr in dir(example)
+                if not callable(getattr(example, attr))
+                and not attr.startswith("__")
+            ),
+            0,
+        )
 
     def __init__(self, path, fields, **kwargs):
         examples = []

@@ -18,29 +18,29 @@ class DistributedDataParallel(Module):
                 dist.broadcast(p, 0)
 
         def allreduce_params():
-            if(self.needs_reduction):
-                self.needs_reduction = False
-                buckets = {}
-                for param in self.module.parameters():
-                    if param.requires_grad and param.grad is not None:
-                        tp = type(param.data)
-                        if tp not in buckets:
-                            buckets[tp] = []
-                        buckets[tp].append(param)
-                if self.warn_on_half:
-                    if torch.cuda.HalfTensor in buckets:
-                        print("WARNING: gloo dist backend for half parameters may be extremely slow." +
-                              " It is recommended to use the NCCL backend in this case.")
-                        self.warn_on_half = False
+            if not self.needs_reduction:
+                return
+            self.needs_reduction = False
+            buckets = {}
+            for param in self.module.parameters():
+                if param.requires_grad and param.grad is not None:
+                    tp = type(param.data)
+                    if tp not in buckets:
+                        buckets[tp] = []
+                    buckets[tp].append(param)
+            if self.warn_on_half and torch.cuda.HalfTensor in buckets:
+                print("WARNING: gloo dist backend for half parameters may be extremely slow." +
+                      " It is recommended to use the NCCL backend in this case.")
+                self.warn_on_half = False
 
-                for tp in buckets:
-                    bucket = buckets[tp]
-                    grads = [param.grad.data for param in bucket]
-                    coalesced = _flatten_dense_tensors(grads)
-                    dist.all_reduce(coalesced)
-                    coalesced /= dist.get_world_size()
-                    for buf, synced in zip(grads, _unflatten_dense_tensors(coalesced, grads)):
-                        buf.copy_(synced)
+            for tp in buckets:
+                bucket = buckets[tp]
+                grads = [param.grad.data for param in bucket]
+                coalesced = _flatten_dense_tensors(grads)
+                dist.all_reduce(coalesced)
+                coalesced /= dist.get_world_size()
+                for buf, synced in zip(grads, _unflatten_dense_tensors(coalesced, grads)):
+                    buf.copy_(synced)
 
         for param in list(self.module.parameters()):
             if param.requires_grad:

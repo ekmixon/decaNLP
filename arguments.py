@@ -11,7 +11,16 @@ from dateutil import tz
 
 def get_commit():
     directory = os.path.dirname(sys.argv[0])
-    return subprocess.Popen("cd {} && git log | head -n 1".format(directory), shell=True, stdout=subprocess.PIPE).stdout.read().split()[1].decode()
+    return (
+        subprocess.Popen(
+            f"cd {directory} && git log | head -n 1",
+            shell=True,
+            stdout=subprocess.PIPE,
+        )
+        .stdout.read()
+        .split()[1]
+        .decode()
+    )
 
 
 def save_args(args):
@@ -35,10 +44,10 @@ def parse():
     parser.add_argument('--train_iterations', nargs='+', type=int, help='number of iterations to focus on each task')
     parser.add_argument('--train_batch_tokens', nargs='+', default=[9000], type=int, help='Number of tokens to use for dynamic batching, corresponging to tasks in train tasks')
     parser.add_argument('--jump_start', default=0, type=int, help='number of iterations to give jump started tasks')
-    parser.add_argument('--n_jump_start', default=0, type=int, help='how many tasks to jump start (presented in order)')    
+    parser.add_argument('--n_jump_start', default=0, type=int, help='how many tasks to jump start (presented in order)')
     parser.add_argument('--num_print', default=15, type=int, help='how many validation examples with greedy output to print to std out')
 
-    parser.add_argument('--no_tensorboard', action='store_false', dest='tensorboard', help='Turn of tensorboard logging') 
+    parser.add_argument('--no_tensorboard', action='store_false', dest='tensorboard', help='Turn of tensorboard logging')
     parser.add_argument('--log_every', default=int(1e2), type=int, help='how often to log results in # of iterations')
     parser.add_argument('--save_every', default=int(1e3), type=int, help='how often to save a checkpoint in # of iterations')
 
@@ -73,7 +82,7 @@ def parse():
     parser.add_argument('--grad_clip', default=1.0, type=float, help='gradient clipping')
     parser.add_argument('--beta0', default=0.9, type=float, help='alternative momentum for Adam (only when not using transformer_lr)')
     parser.add_argument('--optimizer', default='adam', type=str, help='Adam or SGD')
-    parser.add_argument('--no_transformer_lr', action='store_false', dest='transformer_lr', help='turns off the transformer learning rate strategy') 
+    parser.add_argument('--no_transformer_lr', action='store_false', dest='transformer_lr', help='turns off the transformer learning rate strategy')
     parser.add_argument('--sgd_lr', default=1.0, type=float, help='learning rate for SGD (if not using Adam)')
 
     parser.add_argument('--load', default=None, type=str, help='path to checkpoint to load model from inside args.save')
@@ -83,20 +92,16 @@ def parse():
     parser.add_argument('--devices', default=[0], nargs='+', type=int, help='a list of devices that can be used for training (multi-gpu currently WIP)')
     parser.add_argument('--backend', default='gloo', type=str, help='backend for distributed training')
 
-    parser.add_argument('--no_commit', action='store_false', dest='commit', help='do not track the git commit associated with this training run') 
-    parser.add_argument('--exist_ok', action='store_true', help='Ok if the save directory already exists, i.e. overwrite is ok') 
-    parser.add_argument('--token_testing', action='store_true', help='if true, sorts all iterators') 
+    parser.add_argument('--no_commit', action='store_false', dest='commit', help='do not track the git commit associated with this training run')
+    parser.add_argument('--exist_ok', action='store_true', help='Ok if the save directory already exists, i.e. overwrite is ok')
+    parser.add_argument('--token_testing', action='store_true', help='if true, sorts all iterators')
     parser.add_argument('--reverse', action='store_true', help='if token_testing and true, sorts all iterators in reverse') 
 
     args = parser.parse_args()
     if args.model is None:
         args.model = 'mcqa'
     if args.val_tasks is None:
-        args.val_tasks = []
-        for t in args.train_tasks:
-            if t not in args.val_tasks:
-                args.val_tasks.append(t)
-
+        args.val_tasks = [t for t in args.train_tasks if t not in args.val_tasks]
     if 'imdb' in args.val_tasks:
         args.val_tasks.remove('imdb')
     args.world_size = len(args.devices) if args.devices[0] > -1 else -1
@@ -114,12 +119,9 @@ def parse():
             args.train_batch_tokens = len(args.train_tasks) * args.train_batch_tokens
     if len(args.val_batch_size) < len(args.val_tasks):
         args.val_batch_size = len(args.val_tasks) * args.val_batch_size
-        
+
     # postprocess arguments
-    if args.commit:
-        args.commit = get_commit()
-    else:
-        args.commit = ''
+    args.commit = get_commit() if args.commit else ''
     train_out = f'{",".join(args.train_tasks)}'
     if len(args.train_tasks) > 1:
         train_out += f'{"-".join([str(x) for x in args.train_iterations])}'
@@ -130,7 +132,7 @@ def parse():
     if len(args.name) > 0:
         args.log_dir = os.path.join(args.save, args.name)
     args.dist_sync_file = os.path.join(args.log_dir, 'distributed_sync_file')
-    
+
     for x in ['data', 'save', 'embeddings', 'log_dir', 'dist_sync_file']:
         setattr(args, x, os.path.join(args.root, getattr(args, x)))
     save_args(args)

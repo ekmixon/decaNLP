@@ -52,7 +52,7 @@ def log(rank='main'):
 def prepare_data(args, field, logger):
 
     if field is None: 
-        logger.info(f'Constructing field')
+        logger.info('Constructing field')
         FIELD = torchtext.data.ReversibleField(batch_first=True, init_token='<init>', eos_token='<eos>', lower=args.lower, include_lengths=True)
     else:
         FIELD = field
@@ -60,9 +60,7 @@ def prepare_data(args, field, logger):
     train_sets, val_sets, vocab_sets = [], [], []
     for task in args.train_tasks:
         logger.info(f'Loading {task}')
-        kwargs = {'test': None}
-        kwargs['subsample'] = args.subsample
-        kwargs['validation'] = None
+        kwargs = {'test': None, 'subsample': args.subsample, 'validation': None}
         logger.info(f'Adding {task} to training datasets')
         split = get_splits(args, task, FIELD, **kwargs)[0]
         logger.info(f'{task} has {len(split)} training examples')
@@ -83,25 +81,25 @@ def prepare_data(args, field, logger):
             vocab_sets.extend(split) 
 
     if args.load is None:
-        logger.info(f'Getting pretrained word vectors')
+        logger.info('Getting pretrained word vectors')
         char_vectors = torchtext.vocab.CharNGram(cache=args.embeddings)
         glove_vectors = torchtext.vocab.GloVe(cache=args.embeddings)
         vectors = [char_vectors, glove_vectors]
-        vocab_sets = (train_sets + val_sets) if len(vocab_sets) == 0 else vocab_sets
-        logger.info(f'Building vocabulary')
+        vocab_sets = vocab_sets or train_sets + val_sets
+        logger.info('Building vocabulary')
         FIELD.build_vocab(*vocab_sets, max_size=args.max_effective_vocab, vectors=vectors)
 
     FIELD.decoder_itos = FIELD.vocab.itos[:args.max_generative_vocab]
-    FIELD.decoder_stoi = {word: idx for idx, word in enumerate(FIELD.decoder_itos)} 
+    FIELD.decoder_stoi = {word: idx for idx, word in enumerate(FIELD.decoder_itos)}
     FIELD.decoder_to_vocab = {idx: FIELD.vocab.stoi[word] for idx, word in enumerate(FIELD.decoder_itos)}
     FIELD.vocab_to_decoder = {idx: FIELD.decoder_stoi[word] for idx, word in enumerate(FIELD.vocab.itos) if word in FIELD.decoder_stoi}
 
     logger.info(f'Vocabulary has {len(FIELD.vocab)} tokens')
-    logger.info(f'The first 500 tokens:')
+    logger.info('The first 500 tokens:')
     print(FIELD.vocab.itos[:500])
 
     logger.info('Preprocessing training data')
-    preprocess_examples(args, args.train_tasks, train_sets, FIELD, logger, train=True) 
+    preprocess_examples(args, args.train_tasks, train_sets, FIELD, logger, train=True)
     logger.info('Preprocessing validation data')
     preprocess_examples(args, args.val_tasks, val_sets, FIELD, logger, train=args.val_filter)
 
@@ -109,15 +107,22 @@ def prepare_data(args, field, logger):
 
 
 def to_iter(args, world_size, val_batch_size, data, device, train=True, token_testing=False, sort=None):
-    sort = sort if not token_testing else True
-    shuffle = None if not token_testing else False
+    sort = True if token_testing else sort
+    shuffle = False if token_testing else None
     reverse = args.reverse
     Iterator = torchtext.data.BucketIterator if train else torchtext.data.Iterator
-    it = Iterator(data, batch_size=val_batch_size, 
-       device=device, batch_size_fn=batch_fn if train else None, 
-       distributed=world_size>1, train=train, repeat=train, sort=sort, 
-       shuffle=shuffle, reverse=args.reverse)
-    return it
+    return Iterator(
+        data,
+        batch_size=val_batch_size,
+        device=device,
+        batch_size_fn=batch_fn if train else None,
+        distributed=world_size > 1,
+        train=train,
+        repeat=train,
+        sort=sort,
+        shuffle=shuffle,
+        reverse=args.reverse,
+    )
 
 
 def get_learning_rate(i, args):

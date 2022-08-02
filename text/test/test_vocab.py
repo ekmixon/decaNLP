@@ -50,11 +50,7 @@ class TestVocab(TorchtextTestCase):
         # Build a vocab and get vectors twice to test caching, then once more
         # to test string aliases.
         for i in range(3):
-            if i == 2:
-                vectors = str("fasttext.simple.300d")  # must handle str on Py2
-            else:
-                vectors = FastText(language='simple')
-
+            vectors = "fasttext.simple.300d" if i == 2 else FastText(language='simple')
             v = vocab.Vocab(c, min_freq=3, specials=['<unk>', '<pad>', '<bos>'],
                             vectors=vectors)
 
@@ -71,9 +67,8 @@ class TestVocab(TorchtextTestCase):
                 'world': [0.10444, -0.10858, 0.27212, 0.13299, -0.33165],
             }
 
-            for word in expected_fasttext_simple_en:
-                assert_allclose(vectors[v.stoi[word], :5],
-                                expected_fasttext_simple_en[word])
+            for word, value in expected_fasttext_simple_en.items():
+                assert_allclose(vectors[v.stoi[word], :5], value)
 
             assert_allclose(vectors[v.stoi['<unk>']], np.zeros(300))
             assert_allclose(vectors[v.stoi['OOV token']], np.zeros(300))
@@ -85,7 +80,7 @@ class TestVocab(TorchtextTestCase):
     def test_vocab_extend(self):
         c = Counter({'hello': 4, 'world': 3, 'ᑌᑎIᑕOᗪᕮ_Tᕮ᙭T': 5, 'freq_too_low': 2})
         # Build a vocab and get vectors twice to test caching.
-        for i in range(2):
+        for _ in range(2):
             f = FastText(language='simple')
             v = vocab.Vocab(c, min_freq=3, specials=['<unk>', '<pad>', '<bos>'],
                             vectors=f)
@@ -116,7 +111,7 @@ class TestVocab(TorchtextTestCase):
     def test_vocab_download_custom_vectors(self):
         c = Counter({'hello': 4, 'world': 3, 'ᑌᑎIᑕOᗪᕮ_Tᕮ᙭T': 5, 'freq_too_low': 2})
         # Build a vocab and get vectors twice to test caching.
-        for i in range(2):
+        for _ in range(2):
             v = vocab.Vocab(c, min_freq=3, specials=['<unk>', '<pad>', '<bos>'],
                             vectors=Vectors('wiki.simple.vec',
                                             url=FastText.url_base.format('simple')))
@@ -181,8 +176,13 @@ class TestVocab(TorchtextTestCase):
                                     "glove.twitter.27B.zip")
             conditional_remove(zip_file)
             for dim in ["25", "50", "100", "200"]:
-                conditional_remove(os.path.join(self.project_root, ".vector_cache",
-                                   "glove.twitter.27B.{}d.txt".format(dim)))
+                conditional_remove(
+                    os.path.join(
+                        self.project_root,
+                        ".vector_cache",
+                        f"glove.twitter.27B.{dim}d.txt",
+                    )
+                )
 
     @slow
     def test_vocab_download_charngram_vectors(self):
@@ -190,10 +190,7 @@ class TestVocab(TorchtextTestCase):
         # Build a vocab and get vectors twice to test caching, then once more
         # to test string aliases.
         for i in range(3):
-            if i == 2:
-                vectors = "charngram.100d"
-            else:
-                vectors = CharNGram()
+            vectors = "charngram.100d" if i == 2 else CharNGram()
             v = vocab.Vocab(c, min_freq=3, specials=['<unk>', '<pad>', '<bos>'],
                             vectors=vectors)
             expected_itos = ['<unk>', '<pad>', '<bos>',

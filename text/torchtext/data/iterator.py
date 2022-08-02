@@ -68,9 +68,11 @@ class DistributedShuffler:
         g.manual_seed(self.epoch)
 
         indices = list(torch.randperm(len(data), generator=g))
-        if not subsample:
-            return [data[i] for i in indices]
-        return [data[i] for i in self.subsample(indices)]
+        return (
+            [data[i] for i in self.subsample(indices)]
+            if subsample
+            else [data[i] for i in indices]
+        )
 
     def subsample(self, indices):
         # add extra samples to make it evenly divisible
@@ -138,10 +140,7 @@ class Iterator(object):
             self.sort_within_batch = self.sort
         else:
             self.sort_within_batch = sort_within_batch
-        if sort_key is None:
-            self.sort_key = dataset.sort_key
-        else:
-            self.sort_key = sort_key
+        self.sort_key = dataset.sort_key if sort_key is None else sort_key
         self.device = device
 
         self.distributed = distributed
@@ -199,15 +198,10 @@ class Iterator(object):
 
         self.create_batches()
 
-        if not self.distributed:
-            if self._restored_from_state:
-                self._restored_from_state = False
-            else:
-                self._iterations_this_epoch = 0
+        if not self.distributed and self._restored_from_state:
+            self._restored_from_state = False
         else:
             self._iterations_this_epoch = 0
-
-
         if not self.repeat:
             self.iterations = 0
         self.epoch += 1
@@ -232,26 +226,21 @@ class Iterator(object):
                 self.iterations += 1
                 self._iterations_this_epoch += 1
                 if self.sort_within_batch:
-                    # NOTE: `rnn.pack_padded_sequence` requires that a minibatch
-                    # be sorted by decreasing order, which requires reversing
-                    # relative to typical sort keys
                     if self.sort:
                         minibatch.reverse()
                     else:
                         minibatch.sort(key=self.sort_key, reverse=self.reverse)
-                b =  Batch(minibatch, self.dataset, self.device,
-                            self.train)
-                yield b
+                yield Batch(minibatch, self.dataset, self.device, self.train)
+
             if not self.repeat:
                 return
 
     def state_dict(self):
-        d = {"iterations": self.iterations}
         if not self.distributed:
-            d.update({
+            d = {"iterations": self.iterations} | {
                 "iterations_this_epoch": self._iterations_this_epoch,
-                "random_state_this_epoch": self._random_state_this_epoch
-            })
+                "random_state_this_epoch": self._random_state_this_epoch,
+            }
 
     def load_state_dict(self, state_dict):
         self.iterations = state_dict["iterations"]
@@ -377,8 +366,6 @@ def pool(data, batch_size, key, batch_size_fn=lambda new, count, sofar: count,
     for p in batch(data, batch_size * 100, batch_size_fn):
         p_batch = batch(sorted(p, key=key, reverse=reverse), batch_size, batch_size_fn, repeat=repeat)
         if shuffle:
-            for b in random_shuffler(list(p_batch), subsample=False):
-                yield b
+            yield from random_shuffler(list(p_batch), subsample=False)
         else:
-            for b in list(p_batch):
-                yield b
+            yield from list(p_batch)

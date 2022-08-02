@@ -23,7 +23,7 @@ class LSTMDecoder(nn.Module):
         self.num_layers = num_layers
         self.layers = nn.ModuleList()
 
-        for i in range(num_layers):
+        for _ in range(num_layers):
             self.layers.append(nn.LSTMCell(input_size, rnn_size))
             input_size = rnn_size
 
@@ -121,7 +121,7 @@ class Attention(nn.Module):
         if query.dim() == 3 and self.causal:
             tri = key.new_ones((key.size(1), key.size(1))).triu(1) * INF
             dot_products.sub_(tri.unsqueeze(0))
-        if not padding is None:
+        if padding is not None:
             dot_products.masked_fill_(padding.unsqueeze(1).expand_as(dot_products), -INF)
         return matmul(self.dropout(F.softmax(dot_products / self.scale, dim=-1)), value)
 
@@ -176,7 +176,12 @@ class TransformerEncoder(nn.Module):
     def __init__(self, dimension, n_heads, hidden, num_layers, dropout):
         super().__init__()
         self.layers = nn.ModuleList(
-            [TransformerEncoderLayer(dimension, n_heads, hidden, dropout) for i in range(num_layers)])
+            [
+                TransformerEncoderLayer(dimension, n_heads, hidden, dropout)
+                for _ in range(num_layers)
+            ]
+        )
+
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, padding=None):
@@ -214,7 +219,14 @@ class TransformerDecoder(nn.Module):
     def __init__(self, dimension, n_heads, hidden, num_layers, dropout, causal=True):
         super().__init__()
         self.layers = nn.ModuleList(
-            [TransformerDecoderLayer(dimension, n_heads, hidden, dropout, causal=causal) for i in range(num_layers)])
+            [
+                TransformerDecoderLayer(
+                    dimension, n_heads, hidden, dropout, causal=causal
+                )
+                for _ in range(num_layers)
+            ]
+        )
+
         self.dropout = nn.Dropout(dropout)
         self.d_model = dimension
 
@@ -357,8 +369,7 @@ class SemanticFusionUnit(nn.Module):
         c = self.dropout(torch.cat(x, -1))
         r_hat = self.r_hat(c)
         g = self.g(c)
-        o = g * r_hat + (1 - g) * x[0]
-        return o
+        return g * r_hat + (1 - g) * x[0]
 
 
 class LSTMDecoderAttention(nn.Module):
@@ -374,10 +385,9 @@ class LSTMDecoderAttention(nn.Module):
         self.context_mask = context_mask
 
     def forward(self, input, context):
-        if not self.dot:
-            targetT = self.linear_in(input).unsqueeze(2)  # batch x dim x 1
-        else:
-            targetT = input.unsqueeze(2)
+        targetT = (
+            input.unsqueeze(2) if self.dot else self.linear_in(input).unsqueeze(2)
+        )
 
         context_scores = torch.bmm(context, targetT).squeeze(2)
         context_scores.masked_fill_(self.context_mask, -float('inf'))

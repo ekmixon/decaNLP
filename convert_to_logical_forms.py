@@ -12,10 +12,7 @@ def correct_format(x):
         x = {'query': None, 'error': 'Invalid'}
     else: 
         c = x['conds']
-        proper = True
-        for cc in c:
-           if len(cc) < 3:
-               proper = False
+        proper = all(len(cc) >= 3 for cc in c)
         if proper: 
             x = {'query': x, 'error': ''} 
         else:
@@ -43,11 +40,9 @@ def write_logical_forms(greedy, args):
             examples.append(ex)
 
     with open(args.output, 'a') as f:
-        count = 0
         correct = 0
         text_answers = []
-        for idx, (g, ex) in enumerate(zip(greedy, examples)):
-            count += 1
+        for g, ex in zip(greedy, examples):
             text_answers.append([ex['answer'].lower()])
             try:
                 lf = to_lf(g, ex['table'])
@@ -73,9 +68,9 @@ if __name__ == '__main__':
     parser.add_argument('evaluate', help='running on the \'validation\' or \'test\' set')
     args = parser.parse_args()
     with open(args.predictions) as f:
-        greedy = [l for l in f]
+        greedy = list(f)
     if args.ids is not None:
         with open(args.ids) as f:
             ids = [int(l.strip()) for l in f]
-        greedy = [x[1] for x in sorted([(i, g) for i, g in zip(ids, greedy)])]
+        greedy = [x[1] for x in sorted(list(zip(ids, greedy)))]
     write_logical_forms(greedy, args)

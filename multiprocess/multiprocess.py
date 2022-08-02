@@ -25,10 +25,13 @@ class Multiprocess():
             self.processes[-1].start()
 
     def init_process(self, rank, fn, args, runtime_args):
-        torch.distributed.init_process_group(world_size=self.world_size, 
-                                             init_method='file://'+args.dist_sync_file, 
-                                             backend=args.backend, 
-                                             rank=rank)
+        torch.distributed.init_process_group(
+            world_size=self.world_size,
+            init_method=f'file://{args.dist_sync_file}',
+            backend=args.backend,
+            rank=rank,
+        )
+
         fn(args, runtime_args, rank, self.world_size)
   
     def join(self):

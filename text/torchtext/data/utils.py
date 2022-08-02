@@ -6,11 +6,7 @@ def get_tokenizer(tokenizer, decap=False):
             import spacy
             spacy_en = spacy.load('en')
             return lambda s: [tok.text for tok in spacy_en.tokenizer(s)]
-        except ImportError:
-            print("Please install SpaCy and the SpaCy English tokenizer. "
-                  "See the docs at https://spacy.io for more information.")
-            raise
-        except AttributeError:
+        except (ImportError, AttributeError):
             print("Please install SpaCy and the SpaCy English tokenizer. "
                   "See the docs at https://spacy.io for more information.")
             raise
@@ -27,27 +23,16 @@ def get_tokenizer(tokenizer, decap=False):
             print("Please install the necessary NLTK corpora. "
                   "See the docs at http://nltk.org for more information.")
             raise
-    elif tokenizer == 'revtok':
+    elif tokenizer in ['revtok', 'subword']:
         try:
             import revtok
             return revtok.tokenize
         except ImportError:
             print("Please install revtok.")
             raise
-    elif tokenizer == 'subword':
-        try:
-            import revtok
-            return revtok.tokenize
-        except ImportError:
-            print("Please install revtok.")
-            raise
-    raise ValueError("Requested tokenizer {}, valid choices are a "
-                     "callable that takes a single string as input, "
-                     "\"revtok\" for the revtok reversible tokenizer, "
-                     "\"subword\" for the revtok caps-aware tokenizer, "
-                     "\"spacy\" for the SpaCy English tokenizer, or "
-                     "\"moses\" for the NLTK port of the Moses tokenization "
-                     "script.".format(tokenizer))
+    raise ValueError(
+        f'Requested tokenizer {tokenizer}, valid choices are a callable that takes a single string as input, \"revtok\" for the revtok reversible tokenizer, \"subword\" for the revtok caps-aware tokenizer, \"spacy\" for the SpaCy English tokenizer, or \"moses\" for the NLTK port of the Moses tokenization script.'
+    )
 
 
 def interleave_keys(a, b):

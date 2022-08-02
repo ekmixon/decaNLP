@@ -37,10 +37,7 @@ class RawField(object):
 
     def preprocess(self, x):
         """ Preprocess an example if the `preprocessing` Pipeline is provided. """
-        if self.preprocessing is not None:
-            return self.preprocessing(x)
-        else:
-            return x
+        return self.preprocessing(x) if self.preprocessing is not None else x
 
     def process(self, batch, *args, **kargs):
         """ Process a list of examples to create a batch.
@@ -168,10 +165,7 @@ class Field(RawField):
             x = self.tokenize(x.rstrip('\n'))
         if self.lower:
             x = Pipeline(six.text_type.lower)(x)
-        if self.preprocessing is not None:
-            return self.preprocessing(x)
-        else:
-            return x
+        return self.preprocessing(x) if self.preprocessing is not None else x
 
     def process(self, batch, device, train, **kwargs):
         """ Process a list of examples to create a torch.Tensor.
@@ -186,14 +180,14 @@ class Field(RawField):
         """
         if self.numerical:
             if isinstance(batch[0], list):
-                pad_value = max([max(example) for example in batch]) + 1000
+                pad_value = max(max(example) for example in batch) + 1000
                 batch = deepcopy(batch)
                 for example in batch:
                     if self.init_token is not None:
                         for idx, ex in enumerate(example):
                             example[idx] += 1
-    
-                max_len = max([len(example) for example in batch])
+
+                max_len = max(len(example) for example in batch)
                 for example in batch:
                     if len(example) < max_len:
                         example += [pad_value] * (max_len - len(example))
@@ -237,9 +231,7 @@ class Field(RawField):
                     ([] if self.eos_token is None else [self.eos_token]) +
                     [self.pad_token] * max(0, max_len - len(x)))
             lengths.append(len(padded[-1]) - max(0, max_len - len(x)))
-        if self.include_lengths:
-            return (padded, lengths)
-        return padded
+        return (padded, lengths) if self.include_lengths else padded
 
     def build_vocab(self, *args, **kwargs):
         """Construct the Vocab object for this field from one or more datasets.
@@ -325,10 +317,9 @@ class Field(RawField):
                         oov2l[x] = lim_idx
                         l2f[lim_idx] = self.vocab.stoi[x]
                     return lim_idx
-               
+
                 lim_arr = [[limited_idx(x) for x in ex] for ex in arr]
                 num = [[self.vocab.stoi[x] for x in ex] for ex in arr]
-                        
 #                arr = [[self.vocab.stoi[x] for x in ex] for ex in arr]
             else:
                 num = [self.vocab.stoi[x] for x in arr]
@@ -364,18 +355,13 @@ class Field(RawField):
         lim_arr = lim_arr.to(device)
 #            if self.include_lengths:
 #                lengths = lengths.cuda(device)
-        if self.include_lengths:
-            return num, lengths, lim_arr, arr
-        return arr
+        return (num, lengths, lim_arr, arr) if self.include_lengths else arr
 
 
 class ReversibleField(Field):
 
     def __init__(self, **kwargs):
-        if kwargs.get('tokenize') is list:
-            self.use_revtok = False
-        else:
-            self.use_revtok = True
+        self.use_revtok = kwargs.get('tokenize') is not list
         if kwargs.get('tokenize') is None:
             kwargs['tokenize'] = 'revtok'
         if 'unk_token' not in kwargs:

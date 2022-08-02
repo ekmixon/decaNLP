@@ -106,8 +106,7 @@ class PointerGenerator(nn.Module):
         p_context_ptr = scaled_p_vocab.new_full(scaled_p_vocab.size(), EPSILON)
         p_context_ptr.scatter_add_(p_context_ptr.dim()-1, context_indices.unsqueeze(1).expand_as(context_attention), context_attention)
         scaled_p_context_ptr = (1 - vocab_pointer_switches).expand_as(p_context_ptr) * p_context_ptr
-        probs = scaled_p_vocab + scaled_p_context_ptr
-        return probs
+        return scaled_p_vocab + scaled_p_context_ptr
 
 
     def greedy(self, context, context_indices, oov_to_limited_idx, rnn_state=None):

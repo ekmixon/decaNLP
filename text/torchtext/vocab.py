@@ -50,8 +50,10 @@ class Vocab(object):
         min_freq = max(min_freq, 1)
         counter.update(specials)
 
-        self.stoi = defaultdict(_default_unk_index)
-        self.stoi.update({tok: i for i, tok in enumerate(specials)})
+        self.stoi = defaultdict(_default_unk_index) | {
+            tok: i for i, tok in enumerate(specials)
+        }
+
         self.itos = list(specials)
 
         counter.subtract({tok: counter[tok] for tok in specials})
@@ -76,11 +78,7 @@ class Vocab(object):
             return False
         if self.stoi != other.stoi:
             return False
-        if self.itos != other.itos:
-            return False
-        if self.vectors != other.vectors:
-            return False
-        return True
+        return False if self.itos != other.itos else self.vectors == other.vectors
 
     def __len__(self):
         return len(self.itos)
@@ -122,14 +120,15 @@ class Vocab(object):
                 # to a Vectors object
                 if vector not in pretrained_aliases:
                     raise ValueError(
-                        "Got string input vector {}, but allowed pretrained "
-                        "vectors are {}".format(
-                            vector, list(pretrained_aliases.keys())))
+                        f"Got string input vector {vector}, but allowed pretrained vectors are {list(pretrained_aliases.keys())}"
+                    )
+
                 vectors[idx] = pretrained_aliases[vector]()
             elif not isinstance(vector, Vectors):
                 raise ValueError(
-                    "Got input vectors of type {}, expected str or "
-                    "Vectors object".format(type(vector)))
+                    f"Got input vectors of type {type(vector)}, expected str or Vectors object"
+                )
+
 
         if cat:
             tot_dim = sum(v.dim for v in vectors)
@@ -193,8 +192,10 @@ class SubwordVocab(Vocab):
             print("Please install revtok.")
             raise
 
-        self.stoi = defaultdict(_default_unk_index)
-        self.stoi.update({tok: i for i, tok in enumerate(specials)})
+        self.stoi = defaultdict(_default_unk_index) | {
+            tok: i for i, tok in enumerate(specials)
+        }
+
         self.itos = specials
 
         self.segment = revtok.SubwordSegmenter(counter, max_size)
@@ -238,21 +239,21 @@ class Vectors(object):
     def cache(self, name, cache, url=None):
         if os.path.isfile(name):
             path = name
-            path_pt = os.path.join(cache, os.path.basename(name)) + '.pt'
+            path_pt = f'{os.path.join(cache, os.path.basename(name))}.pt'
         else:
             path = os.path.join(cache, name)
-            path_pt = path + '.pt'
+            path_pt = f'{path}.pt'
 
         if not os.path.isfile(path_pt):
             if not os.path.isfile(path) and url:
-                logger.info('Downloading vectors from {}'.format(url))
+                logger.info(f'Downloading vectors from {url}')
                 if not os.path.exists(cache):
                     os.makedirs(cache)
                 dest = os.path.join(cache, os.path.basename(url))
                 if not os.path.isfile(dest):
                     with tqdm(unit='B', unit_scale=True, miniters=1, desc=dest) as t:
                         urlretrieve(url, dest, reporthook=reporthook(t))
-                logger.info('Extracting vectors into {}'.format(cache))
+                logger.info(f'Extracting vectors into {cache}')
                 ext = os.path.splitext(dest)[1][1:]
                 if ext == 'zip':
                     with zipfile.ZipFile(dest, "r") as zf:
@@ -261,29 +262,28 @@ class Vectors(object):
                     with tarfile.open(dest, 'r:gz') as tar:
                         tar.extractall(path=cache)
             if not os.path.isfile(path):
-                raise RuntimeError('no vectors found at {}'.format(path))
+                raise RuntimeError(f'no vectors found at {path}')
 
             # str call is necessary for Python 2/3 compatibility, since
             # argument must be Python 2 str (Python 3 bytes) or
             # Python 3 str (Python 2 unicode)
-            itos, vectors, dim = [], array.array(str('d')), None
+            itos, vectors, dim = [], array.array('d'), None
 
             # Try to read the whole file with utf-8 encoding.
             binary_lines = False
             try:
                 with io.open(path, encoding="utf8") as f:
-                    lines = [line for line in f]
-            # If there are malformed lines, read in binary mode
-            # and manually decode each word from utf-8
+                    lines = list(f)
             except:
-                logger.warning("Could not read {} as UTF8 file, "
-                               "reading file as bytes and skipping "
-                               "words with malformed UTF8.".format(path))
+                logger.warning(
+                    f"Could not read {path} as UTF8 file, reading file as bytes and skipping words with malformed UTF8."
+                )
+
                 with open(path, 'rb') as f:
-                    lines = [line for line in f]
+                    lines = list(f)
                 binary_lines = True
 
-            logger.info("Loading vectors from {}".format(path))
+            logger.info(f"Loading vectors from {path}")
             for line in tqdm(lines, total=len(lines)):
                 # Explicitly splitting on " " is important, so we don't
                 # get rid of Unicode non-breaking spaces in the vectors.
@@ -293,21 +293,23 @@ class Vectors(object):
                 if dim is None and len(entries) > 1:
                     dim = len(entries)
                 elif len(entries) == 1:
-                    logger.warning("Skipping token {} with 1-dimensional "
-                                   "vector {}; likely a header".format(word, entries))
+                    logger.warning(
+                        f"Skipping token {word} with 1-dimensional vector {entries}; likely a header"
+                    )
+
                     continue
                 elif dim != len(entries):
                     raise RuntimeError(
-                        "Vector for token {} has {} dimensions, but previously "
-                        "read vectors have {} dimensions. All vectors must have "
-                        "the same number of dimensions.".format(word, len(entries), dim))
+                        f"Vector for token {word} has {len(entries)} dimensions, but previously read vectors have {dim} dimensions. All vectors must have the same number of dimensions."
+                    )
+
 
                 if binary_lines:
                     try:
                         if isinstance(word, six.binary_type):
                             word = word.decode('utf-8')
                     except:
-                        logger.info("Skipping non-UTF8 token {}".format(repr(word)))
+                        logger.info(f"Skipping non-UTF8 token {repr(word)}")
                         continue
                 vectors.extend(float(x) for x in entries)
                 itos.append(word)
@@ -316,10 +318,10 @@ class Vectors(object):
             self.stoi = {word: i for i, word in enumerate(itos)}
             self.vectors = torch.Tensor(vectors).view(-1, dim)
             self.dim = dim
-            logger.info('Saving vectors to {}'.format(path_pt))
+            logger.info(f'Saving vectors to {path_pt}')
             torch.save((self.itos, self.stoi, self.vectors, self.dim), path_pt)
         else:
-            logger.info('Loading vectors from {}'.format(path_pt))
+            logger.info(f'Loading vectors from {path_pt}')
             self.itos, self.stoi, self.vectors, self.dim = torch.load(path_pt)
 
 
@@ -333,7 +335,7 @@ class GloVe(Vectors):
 
     def __init__(self, name='840B', dim=300, **kwargs):
         url = self.url[name]
-        name = 'glove.{}.{}d.txt'.format(name, str(dim))
+        name = f'glove.{name}.{str(dim)}d.txt'
         super(GloVe, self).__init__(name, url=url, **kwargs)
 
 
@@ -368,7 +370,7 @@ class CharNGram(Vectors):
             end = len(chars) - n + 1
             grams = [chars[i:(i + n)] for i in range(end)]
             for gram in grams:
-                gram_key = '{}gram-{}'.format(n, ''.join(gram))
+                gram_key = f"{n}gram-{''.join(gram)}"
                 if gram_key in self.stoi:
                     vector += self.vectors[self.stoi[gram_key]]
                     num_vectors += 1

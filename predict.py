@@ -19,11 +19,11 @@ def get_all_splits(args, new_vocab):
     for task in args.tasks:
         print(f'Loading {task}')
         kwargs = {}
-        if not 'train' in args.evaluate:
+        if 'train' not in args.evaluate:
             kwargs['train'] =  None
-        if not 'valid' in  args.evaluate:
+        if 'valid' not in args.evaluate:
             kwargs['validation'] =  None
-        if not 'test' in args.evaluate:
+        if 'test' not in args.evaluate:
             kwargs['test'] =  None
         s = get_splits(args, task, new_vocab, **kwargs)[0]
         preprocess_examples(args, [task], [s], new_vocab, train=False)
@@ -53,21 +53,26 @@ def prepare_data(args, FIELD):
 
 def to_iter(data, bs, device):
     Iterator = torchtext.data.Iterator
-    it = Iterator(data, batch_size=bs, 
-       device=device, batch_size_fn=None, 
-       train=False, repeat=False, sort=None, 
-       shuffle=None, reverse=False)
-
-    return it
+    return Iterator(
+        data,
+        batch_size=bs,
+        device=device,
+        batch_size_fn=None,
+        train=False,
+        repeat=False,
+        sort=None,
+        shuffle=None,
+        reverse=False,
+    )
 
 
 def run(args, field, val_sets, model):
     device = set_seed(args)
-    print(f'Preparing iterators')
+    print('Preparing iterators')
     if len(args.val_batch_size) == 1 and len(val_sets) > 1:
         args.val_batch_size *= len(val_sets)
     iters = [(name, to_iter(x, bs, device)) for name, x, bs in zip(args.tasks, val_sets, args.val_batch_size)]
- 
+
     def mult(ps):
         r = 0
         for p in ps:
@@ -76,6 +81,7 @@ def run(args, field, val_sets, model):
                 this_r *= s
             r += this_r
         return r
+
     params = list(filter(lambda p: p.requires_grad, model.parameters()))
     num_param = mult(params)
     print(f'{args.model} has {num_param:,} parameters')
@@ -86,8 +92,18 @@ def run(args, field, val_sets, model):
     with torch.no_grad():
         for task, it in iters:
             print(task)
-            prediction_file_name = os.path.join(os.path.splitext(args.best_checkpoint)[0], args.evaluate, task + '.txt')
-            answer_file_name = os.path.join(os.path.splitext(args.best_checkpoint)[0], args.evaluate, task + '.gold.txt')
+            prediction_file_name = os.path.join(
+                os.path.splitext(args.best_checkpoint)[0],
+                args.evaluate,
+                f'{task}.txt',
+            )
+
+            answer_file_name = os.path.join(
+                os.path.splitext(args.best_checkpoint)[0],
+                args.evaluate,
+                f'{task}.gold.txt',
+            )
+
             results_file_name = answer_file_name.replace('gold', 'results')
             if 'sql' in task or 'squad' in task:
                 ids_file_name = answer_file_name.replace('gold', 'ids')
@@ -114,7 +130,7 @@ def run(args, field, val_sets, model):
 
             for x in [prediction_file_name, answer_file_name, results_file_name]:
                 os.makedirs(os.path.dirname(x), exist_ok=True)
-    
+
             if not os.path.exists(prediction_file_name) or args.overwrite:
                 with open(prediction_file_name, 'w') as prediction_file:
                     predictions = []
@@ -143,10 +159,10 @@ def run(args, field, val_sets, model):
                 if 'sql' in task or 'squad' in task:
                     with open(ids_file_name) as id_file:
                         ids = [int(x.strip()) for x in id_file.readlines()]
-   
+
             def from_all_answers(an):
                 return [it.dataset.all_answers[sid] for sid in an.tolist()] 
-    
+
             if not os.path.exists(answer_file_name) or args.overwrite:
                 with open(answer_file_name, 'w') as answer_file:
                     answers = []
@@ -165,8 +181,8 @@ def run(args, field, val_sets, model):
             else:
                 with open(answer_file_name) as answer_file:
                     answers = [json.loads(x.strip()) for x in answer_file.readlines()] 
-    
-            if len(answers) > 0:
+
+            if answers:
                 if not os.path.exists(results_file_name) or args.overwrite:
                     metrics, answers = compute_metrics(predictions, answers, bleu='iwslt' in task or 'multi30k' in task or args.bleu, dialogue='woz' in task,
                         rouge='cnn' in task or 'dailymail' in task or args.rouge, logical_form='sql' in task, corpus_f1='zre' in task, args=args)
@@ -175,7 +191,7 @@ def run(args, field, val_sets, model):
                 else:
                     with open(results_file_name) as results_file:
                         metrics = json.loads(results_file.readlines()[0])
-    
+
                 if not args.silent:
                     for i, (p, a) in enumerate(zip(predictions, answers)):
                         print(f'Prediction {i+1}: {p}\nAnswer {i+1}: {a}\n')
@@ -185,7 +201,7 @@ def run(args, field, val_sets, model):
     print(f'Evaluated Tasks:\n')
     for i, (task, _) in enumerate(iters):
         print(f'{task}: {decaScore[i]}')
-    print(f'-------------------')
+    print('-------------------')
     print(f'DecaScore:  {sum(decaScore)}\n')
     print(f'\nSummary: | {sum(decaScore)} | {" | ".join([str(x) for x in decaScore])} |\n')
 
@@ -238,19 +254,19 @@ def get_args():
         'zre': 'corpus_f1',
         'schema': 'em'}
 
-    if not args.checkpoint_name is None:
+    if args.checkpoint_name is not None:
         args.best_checkpoint = os.path.join(args.path, args.checkpoint_name)
     else:
         assert os.path.exists(os.path.join(args.path, 'process_0.log'))
         args.best_checkpoint = get_best(args)
-           
+
     return args
 
 
 def get_best(args):
     with open(os.path.join(args.path, 'config.json')) as f:
         save_every = json.load(f)['save_every']
-    
+
     with open(os.path.join(args.path, 'process_0.log')) as f:
         lines = f.readlines()
 
@@ -266,7 +282,7 @@ def get_best(args):
                 continue
             it = int(l.split('iteration_')[1].split(':')[0])
             metric = args.task_to_metric[task]
-            score = float(l.split(metric+'_')[1].split(':')[0])
+            score = float(l.split(f'{metric}_')[1].split(':')[0])
             if it in deca_scores:
                 deca_scores[it]['deca'] += score
                 deca_scores[it][metric] = score
@@ -292,8 +308,8 @@ if __name__ == '__main__':
     print(f'Loading from {args.best_checkpoint}')
     save_dict = torch.load(args.best_checkpoint)
     field = save_dict['field']
-    print(f'Initializing Model')
-    Model = getattr(models, args.model) 
+    print('Initializing Model')
+    Model = getattr(models, args.model)
     model = Model(field, args)
     model_dict = save_dict['model_state_dict']
     backwards_compatible_cove_dict = {}

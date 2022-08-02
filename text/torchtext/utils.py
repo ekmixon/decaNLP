@@ -40,7 +40,7 @@ def download_from_url(url, path):
             confirm_token = v
 
     if confirm_token:
-        url = url + "&confirm=" + confirm_token
+        url = f"{url}&confirm={confirm_token}"
         response = session.get(url, stream=True)
 
     chunk_size = 16 * 1024

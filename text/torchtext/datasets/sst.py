@@ -32,8 +32,15 @@ class SST(data.Dataset):
 
         def get_label_str(label):
             pre = 'very ' if fine_grained else ''
-            return {'0': pre + 'negative', '1': 'negative', '2': 'neutral',
-                    '3': 'positive', '4': pre + 'positive', None: None}[label]
+            return {
+                '0': f'{pre}negative',
+                '1': 'negative',
+                '2': 'neutral',
+                '3': 'positive',
+                '4': f'{pre}positive',
+                None: None,
+            }[label]
+
         label_field.preprocessing = data.Pipeline(get_label_str)
         with open(os.path.expanduser(path)) as f:
             if subtrees:

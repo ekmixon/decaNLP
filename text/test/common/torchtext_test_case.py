@@ -50,12 +50,12 @@ class TorchtextTestCase(TestCase):
             for example in dict_dataset:
                 if data_format == "json":
                     test_ppid_dataset_file.write(json.dumps(example) + "\n")
-                elif data_format == "csv" or data_format == "tsv":
+                elif data_format in ["csv", "tsv"]:
                     test_ppid_dataset_file.write("{}\n".format(
                         delim.join([example["id"], example["question1"],
                                     example["question2"], example["label"]])))
                 else:
-                    raise ValueError("Invalid format {}".format(data_format))
+                    raise ValueError(f"Invalid format {data_format}")
 
     def write_test_numerical_features_dataset(self):
         with open(self.test_numerical_features_dataset_path,

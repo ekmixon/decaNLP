@@ -10,15 +10,13 @@ class TestDataset(TorchtextTestCase):
         for data_format in ["csv", "tsv", "json"]:
             self.write_test_ppid_dataset(data_format=data_format)
 
+            question_field = data.Field(sequential=True)
+            label_field = data.Field(sequential=False)
             if data_format == "json":
-                question_field = data.Field(sequential=True)
-                label_field = data.Field(sequential=False)
                 fields = {"question1": ("q1", question_field),
                           "question2": ("q2", question_field),
                           "label": ("label", label_field)}
             else:
-                question_field = data.Field(sequential=True)
-                label_field = data.Field(sequential=False)
                 fields = [("id", None), ("q1", question_field),
                           ("q2", question_field), ("label", label_field)]
 

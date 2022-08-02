@@ -32,8 +32,7 @@ class Example(object):
         ex = cls()
         for key, vals in fields.items():
             if key not in data:
-                raise ValueError("Specified key {} was not found in "
-                                 "the input data".format(key))
+                raise ValueError(f"Specified key {key} was not found in the input data")
             if vals is not None:
                 if not isinstance(vals, list):
                     vals = [vals]

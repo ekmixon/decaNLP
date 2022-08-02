@@ -5,7 +5,7 @@ from metrics import compute_metrics
 def compute_validation_outputs(model, val_iter, field, optional_names=[]):
     loss, predictions, answers = [], [], []
     outputs = [[] for _ in range(len(optional_names))]
-    for batch_idx, batch in enumerate(val_iter):
+    for batch in val_iter:
         l, p = model(batch)
         loss.append(l)
         predictions.append(pad(p, 150, dim=-1, val=field.vocab.stoi['<pad>']))
@@ -20,7 +20,7 @@ def compute_validation_outputs(model, val_iter, field, optional_names=[]):
             a =  pad(batch.answer.data.cpu(), 150, dim=-1, val=field.vocab.stoi['<pad>'])
         answers.append(a)
         for opt_idx, optional_name in enumerate(optional_names):
-            outputs[opt_idx].append(getattr(batch, optional_name).data.cpu()) 
+            outputs[opt_idx].append(getattr(batch, optional_name).data.cpu())
     loss = torch.cat(loss, 0) if loss[0] is not None else None
     predictions = torch.cat(predictions, 0)
     answers = torch.cat(answers, 0)

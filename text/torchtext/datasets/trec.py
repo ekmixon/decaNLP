@@ -31,7 +31,8 @@ class TREC(data.Dataset):
         examples = []
 
         def get_label_str(label):
-            return label.split(':')[0] if not fine_grained else label
+            return label if fine_grained else label.split(':')[0]
+
         label_field.preprocessing = data.Pipeline(get_label_str)
 
         for line in open(os.path.expanduser(path), 'rb'):

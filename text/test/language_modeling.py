@@ -12,7 +12,7 @@ train, valid, test = datasets.WikiText2.splits(TEXT)
 # print information about the data
 print('train.fields', train.fields)
 print('len(train)', len(train))
-print('vars(train[0])', vars(train[0])['text'][0:10])
+print('vars(train[0])', vars(train[0])['text'][:10])
 
 # build the vocabulary
 TEXT.build_vocab(train, vectors=GloVe(name='6B', dim=300))

@@ -24,7 +24,7 @@ QUESTION_SPECIAL = 'Question:'
 
 
 def get_context_question(context, question):
-    return CONTEXT_SPECIAL +  ' ' + context + ' ' + QUESTION_SPECIAL + ' ' + question
+    return f'{CONTEXT_SPECIAL} {context} {QUESTION_SPECIAL} {question}'
 
 
 class CQA(data.Dataset):
@@ -46,13 +46,13 @@ class IMDb(CQA, imdb.IMDb):
         fields = [(x, field) for x in self.fields]
         examples = []
         labels = {'neg': 'negative', 'pos': 'positive'}
-        question = 'Is this review negative or positive?'
-
         cache_name = os.path.join(os.path.dirname(path), '.cache', os.path.basename(path), str(subsample))
         if os.path.exists(cache_name):
             print(f'Loading cached data from {cache_name}')
             examples = torch.load(cache_name)
         else:
+            question = 'Is this review negative or positive?'
+
             for label in ['pos', 'neg']:
                 for fname in glob.iglob(os.path.join(path, label, '*.txt')):
                     with open(fname, 'r') as f:
@@ -103,7 +103,7 @@ class SST(CQA):
             examples = torch.load(cache_name)
         else:
             labels = ['negative', 'positive']
-            question = 'Is this review ' + labels[0] + ' or ' + labels[1] + '?'
+            question = f'Is this review {labels[0]} or {labels[1]}?'
 
             with io.open(os.path.expanduser(path), encoding='utf8') as f:
                 next(f)
@@ -116,7 +116,7 @@ class SST(CQA):
 
                     if subsample is not None and len(examples) > subsample:
                         break
-       
+
             os.makedirs(os.path.dirname(cache_name), exist_ok=True)
             print(f'Caching data to {cache_name}')
             torch.save(examples, cache_name)
@@ -128,7 +128,7 @@ class SST(CQA):
     def splits(cls, fields, root='.data',
                train='train', validation='dev', test='test', **kwargs):
         path = cls.download(root)
-        postfix = f'_binary_sent.csv'
+        postfix = '_binary_sent.csv'
         train_data = None if train is None else cls(
             os.path.join(path, f'{train}{postfix}'), fields, **kwargs)
         validation_data = None if validation is None else cls(
@@ -352,11 +352,10 @@ dm_double_close_quote = u'\u201d'
 END_TOKENS = ['.', '!', '?', '...', "'", "`", '"', dm_single_close_quote, dm_double_close_quote, ")"] # acceptable ways to end a sentence
 
 def fix_missing_period(line):
-  """Adds a period to a line that is missing a period"""
-  if "@highlight" in line: return line
-  if line=="": return line
-  if line[-1] in END_TOKENS: return line
-  return line + "."
+    """Adds a period to a line that is missing a period"""
+    if "@highlight" in line: return line
+    if line=="": return line
+    return line if line[-1] in END_TOKENS else f"{line}."
 
 
 class Summarization(CQA, data.Dataset):
@@ -490,10 +489,19 @@ class Query:
     def __repr__(self):
         rep = 'SELECT {agg} {sel} FROM table'.format(
             agg=self.agg_ops[self.agg_index],
-            sel= self.columns[self.sel_index] if self.columns is not None else 'col{}'.format(self.sel_index),
+            sel=self.columns[self.sel_index]
+            if self.columns is not None
+            else f'col{self.sel_index}',
         )
+
         if self.conditions:
-            rep +=  ' WHERE ' + ' AND '.join(['{} {} {}'.format(self.columns[i], self.cond_ops[o], v) for i, o, v in self.conditions])
+            rep += ' WHERE ' + ' AND '.join(
+                [
+                    f'{self.columns[i]} {self.cond_ops[o]} {v}'
+                    for i, o, v in self.conditions
+                ]
+            )
+
         return ' '.join(rep.split())
 
     @classmethod
@@ -526,8 +534,8 @@ class WikiSQL(CQA, data.Dataset):
 
             expanded_path = os.path.expanduser(path)
             table_path = os.path.splitext(expanded_path)
-            table_path = table_path[0] + '.tables' + table_path[1]
-           
+            table_path = f'{table_path[0]}.tables{table_path[1]}'
+
             with open(table_path) as tables_file:
                 tables = [json.loads(line) for line in tables_file]
                 id_to_tables = {x['id']: x for x in tables}
@@ -603,9 +611,26 @@ class SRL(CQA, data.Dataset):
 
     @classmethod
     def clean(cls, s):
-        closing_punctuation = set([ ' .', ' ,', ' ;', ' !', ' ?', ' :', ' )', " 'll", " n't ", " %", " 't", " 's", " 'm", " 'd", " 're"])
-        opening_punctuation = set(['( ', '$ '])
-        both_sides = set([' - '])
+        closing_punctuation = {
+            ' .',
+            ' ,',
+            ' ;',
+            ' !',
+            ' ?',
+            ' :',
+            ' )',
+            " 'll",
+            " n't ",
+            " %",
+            " 't",
+            " 's",
+            " 'm",
+            " 'd",
+            " 're",
+        }
+
+        opening_punctuation = {'( ', '$ '}
+        both_sides = {' - '}
         s = ' '.join(s.split()).strip()
         s = s.replace('-LRB-', '(')
         s = s.replace('-RRB-', ')')
@@ -683,12 +708,13 @@ class SRL(CQA, data.Dataset):
                     lines = []
                     for line in f.readlines():
                         line = ' '.join(line.split()).strip()
-                        if len(line) == 0:
+                        if not line:
                             lines.append(line)
                             continue
-                        if not 'WIKI1' in line.split('_')[0]:
-                            if not is_int(line.split()[0]) or len(line.split()) > 3:
-                                lines.append(line)
+                        if 'WIKI1' not in line.split('_')[0] and (
+                            not is_int(line.split()[0]) or len(line.split()) > 3
+                        ):
+                            lines.append(line)
 
                     new_example = True
                     for line in lines:
@@ -846,7 +872,7 @@ class WinogradSchema(CQA, data.Dataset):
             answers = answer.split('/')
             for idx in range(2):
                 answer = answers[idx]
-                question = questions[idx] + f' {answers[0]} or {answers[1]}?'
+                question = f'{questions[idx]} {answers[0]} or {answers[1]}?'
                 examples.append({'context': contexts[idx], 'question': question, 'answer': answer})
 
         traindev = examples[:-100]
@@ -939,18 +965,18 @@ class WOZ(CQA, data.Dataset):
                     file_path = file_name_base.format(split, lang)
                     with open(os.path.expanduser(os.path.join(path, file_path))) as src_file:
                         dialogues = json.loads(src_file.read())
+                        question = 'What is the change in state?'
                         for di, d in enumerate(dialogues):
                             previous_state = {'inform': [], 'request': []}
                             turns = d['dialogue']
                             for ti, t in enumerate(turns):
-                                question = 'What is the change in state?'
                                 actions = []
                                 for act in t['system_acts']:
                                     if isinstance(act, list):
                                         act = ': '.join(act)
                                     actions.append(act)
                                 actions = ', '.join(actions)
-                                if len(actions) > 0:
+                                if actions != "":
                                     actions += ' -- '
                                 context = actions + t['transcript']
                                 belief_state = t['belief_state']
@@ -963,7 +989,10 @@ class WOZ(CQA, data.Dataset):
                                             act = item['act']
                                             if act == 'inform':
                                                 current_state['inform'].append(slot)
-                                                if not slot in previous_state['inform']:
+                                                if (
+                                                    slot
+                                                    not in previous_state['inform']
+                                                ):
                                                     delta_state['inform'].append(slot)
                                                 else:
                                                     prev_slot = previous_state['inform'][previous_state['inform'].index(slot)]
@@ -1044,8 +1073,8 @@ class MultiNLI(CQA, data.Dataset):
         if os.path.exists(train_jsonl):
             return
 
-        with open(os.path.expanduser(os.path.join(path, f'train.jsonl')), 'a') as split_file:
-            with open(os.path.expanduser(os.path.join(path, f'multinli_1.0_train.jsonl'))) as src_file:
+        with open(os.path.expanduser(os.path.join(path, 'train.jsonl')), 'a') as split_file:
+            with open(os.path.expanduser(os.path.join(path, 'multinli_1.0_train.jsonl'))) as src_file:
                 for line in src_file:
                    ex = json.loads(line)
                    ex = {'context': f'Premise: "{ex["sentence1"]}"', 
@@ -1054,9 +1083,9 @@ class MultiNLI(CQA, data.Dataset):
                          'subtask': 'multinli'}
                    split_file.write(json.dumps(ex)+'\n')
 
-        with open(os.path.expanduser(os.path.join(path, f'validation.jsonl')), 'a') as split_file:
+        with open(os.path.expanduser(os.path.join(path, 'validation.jsonl')), 'a') as split_file:
             for subtask in ['matched', 'mismatched']:
-                with open(os.path.expanduser(os.path.join(path, 'multinli_1.0_dev_{}.jsonl'.format(subtask)))) as src_file:
+                with open(os.path.expanduser(os.path.join(path, f'multinli_1.0_dev_{subtask}.jsonl'))) as src_file:
                     for line in src_file:
                        ex = json.loads(line)
                        ex = {'context': f'Premise: "{ex["sentence1"]}"', 
@@ -1129,18 +1158,21 @@ class ZeroShotRE(CQA, data.Dataset):
             with open(os.path.expanduser(os.path.join(path, f'{split}.jsonl')), 'a') as split_file:
                 with open(os.path.expanduser(os.path.join(path, src_file_name))) as src_file:
                     for line in src_file:
-                       split_line = line.split('\t')
-                       if len(split_line) == 4:
-                           answer = ''
-                           relation, question, subject, context = split_line
-                       else:
-                           relation, question, subject, context = split_line[:4]
-                           answer = ', '.join(split_line[4:])
-                       question = question.replace('XXX', subject)
-                       ex = {'context': context, 
-                             'question': question, 
-                             'answer': answer if len(answer) > 0 else 'unanswerable'}
-                       split_file.write(json.dumps(ex)+'\n')
+                        split_line = line.split('\t')
+                        if len(split_line) == 4:
+                            answer = ''
+                            relation, question, subject, context = split_line
+                        else:
+                            relation, question, subject, context = split_line[:4]
+                            answer = ', '.join(split_line[4:])
+                        question = question.replace('XXX', subject)
+                        ex = {
+                            'context': context,
+                            'question': question,
+                            'answer': answer if answer != "" else 'unanswerable',
+                        }
+
+                        split_file.write(json.dumps(ex)+'\n')
 
 
     @classmethod

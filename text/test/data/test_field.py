@@ -44,7 +44,7 @@ class TestField(TorchtextTestCase):
         assert field_lower.preprocess("Test string.") == ["test", "string."]
 
         # Test that custom preprocessing pipelines are properly applied.
-        preprocess_pipeline = data.Pipeline(lambda x: x + "!")
+        preprocess_pipeline = data.Pipeline(lambda x: f"{x}!")
         field_preprocessing = data.Field(preprocessing=preprocess_pipeline,
                                          lower=True)
         assert field_preprocessing.preprocess("Test string.") == ["test!", "string.!"]

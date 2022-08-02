@@ -87,8 +87,7 @@ class Dataset(torch.utils.data.Dataset):
             return 2**32
 
     def __iter__(self):
-        for x in self.examples:
-            yield x
+        yield from self.examples
 
     def __getattr__(self, attr):
         if attr in self.fields:
@@ -120,7 +119,7 @@ class Dataset(torch.utils.data.Dataset):
                 if not os.path.isfile(zpath):
                     if not os.path.exists(os.path.dirname(zpath)):
                         os.makedirs(os.path.dirname(zpath))
-                    print('downloading {}'.format(filename))
+                    print(f'downloading {filename}')
                     download_from_url(url, zpath)
                 ext = os.path.splitext(filename)[-1]
                 if ext == '.zip':
@@ -129,11 +128,11 @@ class Dataset(torch.utils.data.Dataset):
                         zfile.extractall(path)
                 elif ext in ['.gz', '.tgz']:
                     with tarfile.open(zpath, 'r:gz') as tar:
-                        dirs = [member for member in tar.getmembers()]
+                        dirs = list(tar.getmembers())
                         tar.extractall(path=path, members=dirs)
                 elif ext in ['.bz2', '.tar']:
                     with tarfile.open(zpath) as tar:
-                        dirs = [member for member in tar.getmembers()]
+                        dirs = list(tar.getmembers())
                         tar.extractall(path=path, members=dirs)
 
         return os.path.join(path, cls.dirname)
@@ -167,9 +166,7 @@ class TabularDataset(Dataset):
         with io.open(os.path.expanduser(path), encoding="utf8") as f:
             if skip_header:
                 next(f)
-            for line in f:
-                examples.append(make_example(line, fields))
-
+            examples.extend(make_example(line, fields) for line in f)
         if make_example in (Example.fromdict, Example.fromJSON):
             fields, field_dict = [], fields
             for field in field_dict.values():

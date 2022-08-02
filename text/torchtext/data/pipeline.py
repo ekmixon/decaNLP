@@ -21,8 +21,10 @@ class Pipeline(object):
         elif callable(convert_token):
             self.convert_token = convert_token
         else:
-            raise ValueError("Pipeline input convert_token {} is not None "
-                             "or callable".format(convert_token))
+            raise ValueError(
+                f"Pipeline input convert_token {convert_token} is not None or callable"
+            )
+
         self.pipes = [self]
 
     def __call__(self, x, *args):

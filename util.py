@@ -29,22 +29,19 @@ def preprocess_examples(args, tasks, splits, field, logger=None, train=True):
         if train:
             l = len(s.examples)
             s.examples = [ex for ex in s.examples if not is_too_long(ex)]
-            if len(s.examples) < l:
-                if logger is not None:
-                    logger.info(f'Filtering out long {task} examples: {l} -> {len(s.examples)}')
-    
+            if len(s.examples) < l and logger is not None:
+                logger.info(f'Filtering out long {task} examples: {l} -> {len(s.examples)}')
+
             l = len(s.examples)
             s.examples = [ex for ex in s.examples if not is_too_short(ex)]
-            if len(s.examples) < l:
-                if logger is not None:
-                   logger.info(f'Filtering out short {task} examples: {l} -> {len(s.examples)}')
-    
+            if len(s.examples) < l and logger is not None:
+                logger.info(f'Filtering out short {task} examples: {l} -> {len(s.examples)}')
+
             l = len(s.examples)
             s.examples = [ex for ex in s.examples if 'This page includes the show' not in ex.answer]
-            if len(s.examples) < l:
-                if logger is not None:
-                   logger.info(f'Filtering {task} examples with a dummy summary: {l} -> {len(s.examples)} ')
-       
+            if len(s.examples) < l and logger is not None:
+                logger.info(f'Filtering {task} examples with a dummy summary: {l} -> {len(s.examples)} ')
+
         if logger is not None:
             context_lengths = [len(ex.context) for ex in s.examples] 
             question_lengths = [len(ex.question) for ex in s.examples] 
@@ -106,17 +103,17 @@ def elapsed_time(log):
     t %= 3600
     minutes = int(t // 60)
     t %= 60
-    seconds = int(t)
+    seconds = t
     return f'{day:02}:{hour:02}:{minutes:02}:{seconds:02}'
 
 
 def get_splits(args, task, FIELD, **kwargs):
     if 'multi30k' in task:
-        src, trg = ['.'+x for x in task.split('.')[1:]]
+        src, trg = [f'.{x}' for x in task.split('.')[1:]]
         split = torchtext.datasets.generic.Multi30k.splits(exts=(src, trg), 
             fields=FIELD, root=args.data, **kwargs)
     elif 'iwslt' in task:
-        src, trg = ['.'+x for x in task.split('.')[1:]]
+        src, trg = [f'.{x}' for x in task.split('.')[1:]]
         split = torchtext.datasets.generic.IWSLT.splits(exts=(src, trg), 
             fields=FIELD, root=args.data, **kwargs)
     elif 'squad' in task:
@@ -129,8 +126,13 @@ def get_splits(args, task, FIELD, **kwargs):
         split_task = task.split('.')
         _, _, subtask, nones, counting = split_task
         split = torchtext.datasets.generic.OntoNotesNER.splits(
-            subtask=subtask, nones=True if nones == 'nones' else False,
-            fields=FIELD, root=args.data, **kwargs)
+            subtask=subtask,
+            nones=nones == 'nones',
+            fields=FIELD,
+            root=args.data,
+            **kwargs
+        )
+
     elif 'woz' in task:
         split = torchtext.datasets.generic.WOZ.splits(description=task,
             fields=FIELD, root=args.data, **kwargs)
